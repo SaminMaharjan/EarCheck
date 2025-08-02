@@ -88,19 +88,7 @@ export default function EarCheckAI() {
     setCurrentResult(result)
     setHistory((prev) => [result, ...prev])
     setCurrentStep("results")
-    setIsAnalyzing(false)
   }, [])
-
-  const startAnalysis = useCallback(async () => {
-    if (!hasConsented) return
-
-    setCurrentStep("capture")
-    setIsAnalyzing(true)
-    setAnalysisProgress(0)
-
-    // The actual analysis will be handled by the EnhancedAudioCapture component
-    // This just sets up the UI state
-  }, [hasConsented])
 
   const resetTest = () => {
     setCurrentStep("landing")
@@ -113,30 +101,153 @@ export default function EarCheckAI() {
     setLoadedDatasets((prev) => [...prev, datasetId])
   }
 
-  if (currentStep === "capture" || currentStep === "analysis") {
+  if (currentStep === "landing") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-4xl">
-          <CardHeader className="text-center">
-            <CardTitle className="flex items-center justify-center gap-2 text-2xl">
-              <Activity className="h-6 w-6 text-blue-600" />
-              Analyzing Your Health Data
-            </CardTitle>
-            <CardDescription>Please cough naturally while looking at the camera</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <EnhancedAudioCapture isRecording={isAnalyzing} onAnalysisComplete={handleAnalysisComplete} />
-              <VideoCapture isRecording={isAnalyzing} />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center space-y-6 py-12">
+            <div className="space-y-4">
+              <div className="flex justify-center">
+                <div className="bg-blue-600 p-4 rounded-full">
+                  <Stethoscope className="h-12 w-12 text-white" />
+                </div>
+              </div>
+              <h1 className="text-4xl font-bold text-gray-900">EarCheck AI</h1>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                Advanced respiratory health monitoring through AI-powered cough analysis and fatigue detection
+              </p>
             </div>
 
-            <div className="text-center">
-              <Button onClick={resetTest} variant="outline" disabled={isAnalyzing}>
-                Cancel Analysis
-              </Button>
+            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              <Card className="text-center p-6">
+                <div className="bg-blue-100 p-3 rounded-full w-fit mx-auto mb-4">
+                  <Mic className="h-8 w-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Cough Analysis</h3>
+                <p className="text-gray-600 text-sm">
+                  Advanced ML algorithms detect and classify respiratory conditions from cough patterns
+                </p>
+              </Card>
+
+              <Card className="text-center p-6">
+                <div className="bg-green-100 p-3 rounded-full w-fit mx-auto mb-4">
+                  <Camera className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Fatigue Detection</h3>
+                <p className="text-gray-600 text-sm">
+                  Computer vision analyzes facial features to assess fatigue levels and health indicators
+                </p>
+              </Card>
+
+              <Card className="text-center p-6">
+                <div className="bg-purple-100 p-3 rounded-full w-fit mx-auto mb-4">
+                  <Brain className="h-8 w-8 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">AI Insights</h3>
+                <p className="text-gray-600 text-sm">
+                  Personalized health recommendations based on comprehensive analysis results
+                </p>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="space-y-4">
+              <Button
+                onClick={() => setCurrentStep("capture")}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
+                size="lg"
+              >
+                Start Health Analysis
+              </Button>
+              <div className="text-sm text-gray-500">
+                <Shield className="h-4 w-4 inline mr-1" />
+                Your data is processed locally and never shared
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (currentStep === "capture") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Health Analysis</h1>
+            <p className="text-gray-600">Record your cough and facial analysis for comprehensive health assessment</p>
+          </div>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="test">Cough Test</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="privacy">Privacy</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="test">
+              <div className="grid lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Mic className="h-5 w-5 text-blue-600" />
+                      Cough Recording
+                    </CardTitle>
+                    <CardDescription>
+                      Record a clear cough sound for respiratory health analysis
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <EnhancedAudioCapture
+                      isRecording={isAnalyzing}
+                      onAnalysisComplete={handleAnalysisComplete}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Camera className="h-5 w-5 text-green-600" />
+                      Facial Analysis
+                    </CardTitle>
+                    <CardDescription>
+                      Video analysis for fatigue detection and health indicators
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <VideoCapture isRecording={isAnalyzing} />
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="mt-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-purple-600" />
+                      Dataset Integration
+                    </CardTitle>
+                    <CardDescription>
+                      Upload additional datasets to enhance analysis accuracy
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <DatasetUploader onDatasetLoaded={handleDatasetLoaded} />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="history">
+              <HistoryView history={history} />
+            </TabsContent>
+
+            <TabsContent value="privacy">
+              <PrivacyNotice />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     )
   }
@@ -152,200 +263,11 @@ export default function EarCheckAI() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-6xl mx-auto p-4">
-        {/* Header */}
-        <header className="text-center py-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-blue-600 rounded-full">
-              <Stethoscope className="h-8 w-8 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold text-gray-900">EarCheck AI</h1>
-          </div>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Real-time cough analysis powered by advanced ML. Get instant health insights from your cough, facial
-            patterns, and breathing.
-          </p>
-          {loadedDatasets.length > 0 && (
-            <div className="mt-4 text-sm text-green-600">
-              ✓ {loadedDatasets.length} dataset(s) loaded for enhanced analysis
-            </div>
-          )}
-        </header>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-lg mx-auto">
-            <TabsTrigger value="test" className="flex items-center gap-2">
-              <Mic className="h-4 w-4" />
-              Test
-            </TabsTrigger>
-            <TabsTrigger value="datasets" className="flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              Datasets
-            </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <History className="h-4 w-4" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="privacy" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Privacy
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="test" className="space-y-6">
-            {/* Main CTA Card */}
-            <Card className="max-w-2xl mx-auto">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Start Your Health Check</CardTitle>
-                <CardDescription>Cough into your device for 3-5 seconds while looking at the camera</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="space-y-2">
-                    <div className="p-3 bg-blue-100 rounded-full w-fit mx-auto">
-                      <Mic className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <p className="text-sm font-medium">Advanced Audio Analysis</p>
-                    <p className="text-xs text-muted-foreground">ML-powered cough classification</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="p-3 bg-green-100 rounded-full w-fit mx-auto">
-                      <Camera className="h-6 w-6 text-green-600" />
-                    </div>
-                    <p className="text-sm font-medium">Facial Analysis</p>
-                    <p className="text-xs text-muted-foreground">Fatigue detection</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="p-3 bg-purple-100 rounded-full w-fit mx-auto">
-                      <Brain className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <p className="text-sm font-medium">AI Insights</p>
-                    <p className="text-xs text-muted-foreground">Personalized recommendations</p>
-                  </div>
-                </div>
-
-                <PrivacyNotice hasConsented={hasConsented} onConsentChange={setHasConsented} />
-
-                <Button
-                  onClick={startAnalysis}
-                  disabled={!hasConsented || isAnalyzing}
-                  size="lg"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="mr-2 h-5 w-5" />
-                      Cough Now
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Enhanced Features Grid */}
-            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-blue-600" />
-                    ML-Powered Analysis
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Advanced machine learning models analyze MFCC features, spectral characteristics, and temporal
-                    patterns to classify respiratory conditions with high accuracy.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Database className="h-5 w-5 text-green-600" />
-                    Dataset Integration
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Upload your own datasets or connect to Kaggle datasets for enhanced model training and improved
-                    classification accuracy.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-600" />
-                    Real-time Processing
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Real-time audio feature extraction and classification provide instant feedback with detailed
-                    confidence scores and recommendations.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="datasets">
-            <DatasetUploader onDatasetLoaded={handleDatasetLoaded} />
-          </TabsContent>
-
-          <TabsContent value="history">
-            <HistoryView history={history} />
-          </TabsContent>
-
-          <TabsContent value="privacy">
-            <Card className="max-w-4xl mx-auto">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Privacy & Security
-                </CardTitle>
-                <CardDescription>Your privacy and data security are our top priorities</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <h3 className="font-semibold">Data Processing</h3>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li>• Audio processed with advanced ML algorithms</li>
-                      <li>• MFCC feature extraction for accurate analysis</li>
-                      <li>• Real-time classification with confidence scores</li>
-                      <li>• Optional dataset integration for enhanced accuracy</li>
-                    </ul>
-                  </div>
-                  <div className="space-y-3">
-                    <h3 className="font-semibold">Your Rights</h3>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li>• Full control over your data and recordings</li>
-                      <li>• Download recordings for personal use</li>
-                      <li>• Clear consent before any analysis</li>
-                      <li>• No sharing with third parties</li>
-                    </ul>
-                  </div>
-                </div>
-                <Alert>
-                  <Shield className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Medical Disclaimer:</strong> EarCheck AI is for informational purposes only and should not
-                    replace professional medical advice. Always consult healthcare providers for medical concerns.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto text-center py-12">
+        <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
+        <h2 className="text-2xl font-semibold mb-2">Processing Analysis</h2>
+        <p className="text-gray-600">Please wait while we analyze your health data...</p>
       </div>
     </div>
   )
