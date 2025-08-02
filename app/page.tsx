@@ -5,15 +5,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Mic, Camera, Activity, Brain, History, Shield, Stethoscope, Loader2, Database } from "lucide-react"
+import { Mic, Camera, Activity, Brain, History, Shield, Stethoscope, Loader2, Database, Eye } from "lucide-react"
 import EnhancedAudioCapture from "@/components/enhanced-audio-capture"
-import VideoCapture from "@/components/video-capture"
-import ResultsDashboard from "@/components/results-dashboard"
+import EnhancedVideoCapture from "@/components/enhanced-video-capture"
+import EnhancedResultsDashboard from "@/components/enhanced-results-dashboard"
 import HistoryView from "@/components/history-view"
 import PrivacyNotice from "@/components/privacy-notice"
 import DatasetUploader from "@/components/dataset-uploader"
 import type { CoughAnalysis } from "@/lib/audio-processor"
 import type { CoughClassification } from "@/lib/cough-classifier"
+import type { FatigueAnalysis } from "@/lib/face-analyzer"
+import { CoswaraClassifier } from "@/lib/coswara-classifier"
+import { Badge } from "@/components/ui/badge"
 
 export interface AnalysisResult {
   id: string
@@ -36,6 +39,7 @@ export interface AnalysisResult {
   overallRisk: "Low" | "Medium" | "High"
   rawAnalysis?: CoughAnalysis
   mlClassification?: CoughClassification
+  fatigueAnalysis?: FatigueAnalysis
 }
 
 export default function EarCheckAI() {
@@ -47,58 +51,73 @@ export default function EarCheckAI() {
   const [hasConsented, setHasConsented] = useState(false)
   const [activeTab, setActiveTab] = useState("test")
   const [loadedDatasets, setLoadedDatasets] = useState<string[]>([])
+  const [currentFatigueAnalysis, setCurrentFatigueAnalysis] = useState<FatigueAnalysis | null>(null)
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const coswaraClassifierRef = useRef<CoswaraClassifier>(new CoswaraClassifier())
 
-  const handleAnalysisComplete = useCallback(async (analysis: CoughAnalysis, classification: CoughClassification) => {
-    // Convert ML results to our UI format
-    const conditions = classification.conditions.map((condition) => ({
-      name: condition.name,
-      confidence: Math.round(condition.probability),
-      color: getConditionColor(condition.name),
-    }))
+  const handleAnalysisComplete = useCallback(
+    async (analysis: CoughAnalysis, classification: CoughClassification) => {
+      try {
+        // Get Coswara-based classification
+        const coswaraClassification = await coswaraClassifierRef.current.classifyCough(analysis)
 
-    // Generate fatigue score (mock for now)
-    const fatigueLevel = Math.random() > 0.6 ? "Moderate" : Math.random() > 0.3 ? "Low" : "High"
-    const fatiguePercentage =
-      fatigueLevel === "High"
-        ? 75 + Math.random() * 25
-        : fatigueLevel === "Moderate"
-          ? 40 + Math.random() * 35
-          : Math.random() * 40
+        // Convert ML results to our UI format
+        const conditions = coswaraClassification.conditions.map((condition) => ({
+          name: condition.name,
+          confidence: Math.round(condition.probability),
+          color: getConditionColor(condition.name),
+        }))
 
-    // Generate breathing pattern analysis
-    const breathingTypes = ["Normal breathing", "Shallow breathing", "Irregular breathing"]
-    const breathingType = breathingTypes[Math.floor(Math.random() * breathingTypes.length)]
+        // Use real fatigue analysis if available
+        const fatigueData = currentFatigueAnalysis || {
+          fatigueLevel: "Low" as const,
+          fatigueScore: 25,
+          indicators: ["No facial analysis data available"],
+        }
 
-    const result: AnalysisResult = {
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      coughAnalysis: {
-        conditions,
-        dominantCondition: classification.dominantCondition,
-      },
-      fatigueScore: {
-        level: fatigueLevel,
-        percentage: Math.round(fatiguePercentage),
-        indicators: ["Eye brightness analysis", "Blinking pattern assessment", "Facial muscle tension evaluation"],
-      },
-      breathingPattern: {
-        type: breathingType,
-        description: `Breathing pattern analysis based on audio characteristics: ${breathingType.toLowerCase()} detected`,
-        concerns: breathingType !== "Normal breathing" ? ["Possible respiratory irregularity"] : [],
-      },
-      aiRecommendation: generateAIRecommendation(classification, fatigueLevel),
-      overallRisk: determineOverallRisk(classification, fatigueLevel),
-      rawAnalysis: analysis,
-      mlClassification: classification,
-    }
+        // Generate breathing pattern analysis based on audio features
+        const breathingType = determineBreathingPattern(analysis)
 
-    setCurrentResult(result)
-    setHistory((prev) => [result, ...prev])
-    setCurrentStep("results")
-    setIsAnalyzing(false)
+        const result: AnalysisResult = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          coughAnalysis: {
+            conditions,
+            dominantCondition: coswaraClassification.dominantCondition,
+          },
+          fatigueScore: {
+            level: fatigueData.fatigueLevel,
+            percentage: Math.round(fatigueData.fatigueScore),
+            indicators: fatigueData.indicators,
+          },
+          breathingPattern: {
+            type: breathingType,
+            description: `Breathing pattern analysis based on audio characteristics: ${breathingType.toLowerCase()} detected`,
+            concerns: breathingType !== "Normal breathing" ? ["Audio suggests respiratory irregularity"] : [],
+          },
+          aiRecommendation: generateEnhancedAIRecommendation(coswaraClassification, fatigueData),
+          overallRisk: determineOverallRisk(coswaraClassification, fatigueData.fatigueLevel),
+          rawAnalysis: analysis,
+          mlClassification: coswaraClassification,
+          fatigueAnalysis: currentFatigueAnalysis,
+        }
+
+        setCurrentResult(result)
+        setHistory((prev) => [result, ...prev])
+        setCurrentStep("results")
+        setIsAnalyzing(false)
+      } catch (error) {
+        console.error("Error in analysis:", error)
+        setIsAnalyzing(false)
+      }
+    },
+    [currentFatigueAnalysis],
+  )
+
+  const handleFatigueAnalysis = useCallback((analysis: FatigueAnalysis) => {
+    setCurrentFatigueAnalysis(analysis)
   }, [])
 
   const startAnalysis = useCallback(async () => {
@@ -107,9 +126,9 @@ export default function EarCheckAI() {
     setCurrentStep("capture")
     setIsAnalyzing(true)
     setAnalysisProgress(0)
+    setCurrentFatigueAnalysis(null)
 
-    // The actual analysis will be handled by the EnhancedAudioCapture component
-    // This just sets up the UI state
+    // The actual analysis will be handled by the Enhanced components
   }, [hasConsented])
 
   const resetTest = () => {
@@ -117,6 +136,7 @@ export default function EarCheckAI() {
     setCurrentResult(null)
     setAnalysisProgress(0)
     setIsAnalyzing(false)
+    setCurrentFatigueAnalysis(null)
   }
 
   const handleDatasetLoaded = (datasetId: string) => {
@@ -126,19 +146,46 @@ export default function EarCheckAI() {
   if (currentStep === "capture" || currentStep === "analysis") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-4xl">
+        <Card className="w-full max-w-6xl">
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center gap-2 text-2xl">
               <Activity className="h-6 w-6 text-blue-600" />
-              Analyzing Your Health Data
+              Advanced Health Analysis in Progress
             </CardTitle>
-            <CardDescription>Please cough naturally while looking at the camera</CardDescription>
+            <CardDescription>
+              Cough naturally while looking at the camera. MediaPipe and Coswara ML models are analyzing your data.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid md:grid-cols-2 gap-6">
               <EnhancedAudioCapture isRecording={isAnalyzing} onAnalysisComplete={handleAnalysisComplete} />
-              <VideoCapture isRecording={isAnalyzing} />
+              <EnhancedVideoCapture isRecording={isAnalyzing} onFatigueAnalysis={handleFatigueAnalysis} />
             </div>
+
+            {/* Real-time Fatigue Display */}
+            {currentFatigueAnalysis && (
+              <Card className="bg-green-50 border-green-200">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Live Fatigue Analysis:</span>
+                    <Badge
+                      variant={
+                        currentFatigueAnalysis.fatigueLevel === "High"
+                          ? "destructive"
+                          : currentFatigueAnalysis.fatigueLevel === "Moderate"
+                            ? "secondary"
+                            : "default"
+                      }
+                    >
+                      {currentFatigueAnalysis.fatigueLevel} ({Math.round(currentFatigueAnalysis.fatigueScore)}%)
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Blinks: {currentFatigueAnalysis.blinkRate}/min | Yawns: {currentFatigueAnalysis.yawnRate}/min
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="text-center">
               <Button onClick={resetTest} variant="outline" disabled={isAnalyzing}>
@@ -154,8 +201,8 @@ export default function EarCheckAI() {
   if (currentStep === "results" && currentResult) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-6xl mx-auto">
-          <ResultsDashboard result={currentResult} onNewTest={resetTest} />
+        <div className="max-w-7xl mx-auto">
+          <EnhancedResultsDashboard result={currentResult} onNewTest={resetTest} />
         </div>
       </div>
     )
@@ -173,8 +220,7 @@ export default function EarCheckAI() {
             <h1 className="text-4xl font-bold text-gray-900">EarCheck AI</h1>
           </div>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Real-time cough analysis powered by advanced ML. Get instant health insights from your cough, facial
-            patterns, and breathing.
+            Advanced ML-powered cough analysis with MediaPipe facial recognition and Coswara dataset integration.
           </p>
           {loadedDatasets.length > 0 && (
             <div className="mt-4 text-sm text-green-600">
@@ -207,8 +253,10 @@ export default function EarCheckAI() {
             {/* Main CTA Card */}
             <Card className="max-w-2xl mx-auto">
               <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Start Your Health Check</CardTitle>
-                <CardDescription>Cough into your device for 3-5 seconds while looking at the camera</CardDescription>
+                <CardTitle className="text-2xl">Start Your Advanced Health Check</CardTitle>
+                <CardDescription>
+                  Cough naturally for 3-5 seconds while looking at the camera for comprehensive ML analysis
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-3 gap-4 text-center">
@@ -216,22 +264,22 @@ export default function EarCheckAI() {
                     <div className="p-3 bg-blue-100 rounded-full w-fit mx-auto">
                       <Mic className="h-6 w-6 text-blue-600" />
                     </div>
-                    <p className="text-sm font-medium">Advanced Audio Analysis</p>
-                    <p className="text-xs text-muted-foreground">ML-powered cough classification</p>
+                    <p className="text-sm font-medium">Coswara ML Analysis</p>
+                    <p className="text-xs text-muted-foreground">COVID dataset comparison</p>
                   </div>
                   <div className="space-y-2">
                     <div className="p-3 bg-green-100 rounded-full w-fit mx-auto">
                       <Camera className="h-6 w-6 text-green-600" />
                     </div>
-                    <p className="text-sm font-medium">Facial Analysis</p>
-                    <p className="text-xs text-muted-foreground">Fatigue detection</p>
+                    <p className="text-sm font-medium">MediaPipe Face Mesh</p>
+                    <p className="text-xs text-muted-foreground">468 facial landmarks</p>
                   </div>
                   <div className="space-y-2">
                     <div className="p-3 bg-purple-100 rounded-full w-fit mx-auto">
                       <Brain className="h-6 w-6 text-purple-600" />
                     </div>
-                    <p className="text-sm font-medium">AI Insights</p>
-                    <p className="text-xs text-muted-foreground">Personalized recommendations</p>
+                    <p className="text-sm font-medium">Real-time Analysis</p>
+                    <p className="text-xs text-muted-foreground">Instant ML insights</p>
                   </div>
                 </div>
 
@@ -246,12 +294,12 @@ export default function EarCheckAI() {
                   {isAnalyzing ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Analyzing...
+                      Analyzing with ML...
                     </>
                   ) : (
                     <>
                       <Mic className="mr-2 h-5 w-5" />
-                      Cough Now
+                      Start ML Analysis
                     </>
                   )}
                 </Button>
@@ -263,14 +311,14 @@ export default function EarCheckAI() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-blue-600" />
-                    ML-Powered Analysis
+                    <Database className="h-5 w-5 text-blue-600" />
+                    Coswara Dataset Integration
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Advanced machine learning models analyze MFCC features, spectral characteristics, and temporal
-                    patterns to classify respiratory conditions with high accuracy.
+                    Compare your cough against thousands of COVID-19, healthy, and symptomatic samples from the Coswara
+                    research dataset for accurate classification.
                   </p>
                 </CardContent>
               </Card>
@@ -278,14 +326,14 @@ export default function EarCheckAI() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Database className="h-5 w-5 text-green-600" />
-                    Dataset Integration
+                    <Eye className="h-5 w-5 text-green-600" />
+                    MediaPipe Face Analysis
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Upload your own datasets or connect to Kaggle datasets for enhanced model training and improved
-                    classification accuracy.
+                    Real-time facial landmark detection tracks 468 points to analyze blink rates, yawn detection, and
+                    head posture for comprehensive fatigue assessment.
                   </p>
                 </CardContent>
               </Card>
@@ -293,14 +341,14 @@ export default function EarCheckAI() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-600" />
-                    Real-time Processing
+                    <Activity className="h-5 w-5 text-purple-600" />
+                    Advanced Audio Features
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Real-time audio feature extraction and classification provide instant feedback with detailed
-                    confidence scores and recommendations.
+                    MFCC extraction, spectral analysis, and harmonic ratio calculation provide detailed acoustic
+                    fingerprinting for precise respiratory condition detection.
                   </p>
                 </CardContent>
               </Card>
@@ -327,29 +375,30 @@ export default function EarCheckAI() {
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <h3 className="font-semibold">Data Processing</h3>
+                    <h3 className="font-semibold">Advanced Processing</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li>• Audio processed with advanced ML algorithms</li>
-                      <li>• MFCC feature extraction for accurate analysis</li>
-                      <li>• Real-time classification with confidence scores</li>
-                      <li>• Optional dataset integration for enhanced accuracy</li>
+                      <li>• MediaPipe facial landmark detection (468 points)</li>
+                      <li>• Coswara dataset comparison for COVID detection</li>
+                      <li>• MFCC and spectral feature extraction</li>
+                      <li>• Real-time ML classification with confidence scores</li>
                     </ul>
                   </div>
                   <div className="space-y-3">
-                    <h3 className="font-semibold">Your Rights</h3>
+                    <h3 className="font-semibold">Data Protection</h3>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li>• Full control over your data and recordings</li>
-                      <li>• Download recordings for personal use</li>
-                      <li>• Clear consent before any analysis</li>
-                      <li>• No sharing with third parties</li>
+                      <li>• All processing happens locally in your browser</li>
+                      <li>• No raw audio/video data sent to servers</li>
+                      <li>• MediaPipe runs entirely client-side</li>
+                      <li>• Optional recording download for personal use</li>
                     </ul>
                   </div>
                 </div>
                 <Alert>
                   <Shield className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Medical Disclaimer:</strong> EarCheck AI is for informational purposes only and should not
-                    replace professional medical advice. Always consult healthcare providers for medical concerns.
+                    <strong>Medical Disclaimer:</strong> EarCheck AI uses research datasets and ML models for
+                    informational purposes only. This tool should not replace professional medical diagnosis or
+                    treatment. Always consult healthcare providers for medical concerns.
                   </AlertDescription>
                 </Alert>
               </CardContent>
@@ -369,47 +418,80 @@ function getConditionColor(condition: string): string {
     Bronchitis: "bg-yellow-500",
     Pneumonia: "bg-purple-500",
     Healthy: "bg-green-500",
+    Symptomatic: "bg-blue-500",
   }
   return colors[condition] || "bg-gray-500"
 }
 
-function generateAIRecommendation(classification: CoughClassification, fatigueLevel: string): string {
-  const dominant = classification.dominantCondition
-  const confidence = classification.overallConfidence
+function determineBreathingPattern(analysis: CoughAnalysis): string {
+  // Analyze audio features to determine breathing pattern
+  const { spectralCentroid, zeroCrossingRate, rms } = analysis
 
-  const recommendations: Record<string, string> = {
-    "COVID-19": `Based on your cough analysis showing patterns similar to COVID-19 (${confidence} confidence), consider self-isolation and getting tested. Monitor symptoms closely and seek medical attention if breathing difficulties develop.`,
-    Asthma: `Your cough shows characteristics consistent with asthma patterns (${confidence} confidence). Ensure you have your rescue inhaler available, avoid known triggers, and consider consulting your healthcare provider if symptoms persist.`,
-    Bronchitis: `The analysis suggests bronchitis-like patterns (${confidence} confidence). Stay hydrated, rest, and use a humidifier. If symptoms worsen or persist beyond a week, consult a healthcare professional.`,
-    Pneumonia: `Your cough analysis indicates possible pneumonia patterns (${confidence} confidence). This requires medical attention - please consult a healthcare provider promptly for proper evaluation and treatment.`,
-    Healthy: `Your cough patterns appear normal (${confidence} confidence). Continue maintaining good health practices and monitor any changes in symptoms.`,
+  if (spectralCentroid > 2200 && zeroCrossingRate > 0.12) {
+    return "Shallow breathing"
+  } else if (rms < 0.08 && spectralCentroid < 1800) {
+    return "Deep breathing"
+  } else if (zeroCrossingRate > 0.15) {
+    return "Irregular breathing"
   }
 
-  let baseRecommendation =
-    recommendations[dominant] || "Consult a healthcare provider for proper evaluation of your symptoms."
+  return "Normal breathing"
+}
 
-  if (fatigueLevel === "High") {
-    baseRecommendation += " Your high fatigue levels suggest you should prioritize rest and recovery."
-  } else if (fatigueLevel === "Moderate") {
-    baseRecommendation += " Moderate fatigue detected - ensure adequate rest and hydration."
+function generateEnhancedAIRecommendation(classification: any, fatigueData: any): string {
+  const dominant = classification.dominantCondition
+  const confidence = classification.confidence
+  const similarity = Math.round(classification.coswaraComparison.averageSimilarity * 100)
+
+  let baseRecommendation = ""
+
+  switch (dominant) {
+    case "COVID-19":
+      baseRecommendation = `Your cough shows ${similarity}% similarity to COVID-19 positive samples in the Coswara database (${confidence} confidence). Consider self-isolation, get tested, and monitor symptoms closely. Seek medical attention if breathing difficulties develop.`
+      break
+    case "Healthy":
+      baseRecommendation = `Your cough patterns match ${similarity}% with healthy samples from the Coswara dataset (${confidence} confidence). Your respiratory function appears normal.`
+      break
+    case "Symptomatic":
+      baseRecommendation = `Your cough shows ${similarity}% similarity to symptomatic (non-COVID) samples (${confidence} confidence). Monitor symptoms and consider consulting a healthcare provider if they persist.`
+      break
+    case "Asthma":
+      baseRecommendation = `Your cough patterns are ${similarity}% similar to asthma-related samples (${confidence} confidence). Ensure you have your rescue inhaler available and avoid known triggers.`
+      break
+    default:
+      baseRecommendation = `Based on Coswara dataset analysis, your cough shows patterns similar to ${dominant} with ${similarity}% similarity.`
+  }
+
+  // Add fatigue analysis
+  if (fatigueData.fatigueLevel === "High") {
+    baseRecommendation += ` MediaPipe facial analysis detected high fatigue levels (${fatigueData.fatigueScore}%) - prioritize rest and recovery.`
+  } else if (fatigueData.fatigueLevel === "Moderate") {
+    baseRecommendation += ` Moderate fatigue detected through facial analysis - ensure adequate rest.`
   }
 
   return baseRecommendation
 }
 
-function determineOverallRisk(classification: CoughClassification, fatigueLevel: string): "Low" | "Medium" | "High" {
+function determineOverallRisk(classification: any, fatigueLevel: string): "Low" | "Medium" | "High" {
   const dominant = classification.dominantCondition
-  const confidence = classification.overallConfidence
+  const confidence = classification.confidence
+  const similarity = classification.coswaraComparison.averageSimilarity
 
-  if (dominant === "COVID-19" || dominant === "Pneumonia") {
+  if (dominant === "COVID-19" && similarity > 0.6) {
     return confidence === "high" ? "High" : "Medium"
   }
 
-  if (dominant === "Asthma" || dominant === "Bronchitis") {
-    if (confidence === "high" && fatigueLevel === "High") return "Medium"
-    if (confidence === "high") return "Medium"
+  if (dominant === "Symptomatic" && similarity > 0.7) {
+    return "Medium"
+  }
+
+  if (fatigueLevel === "High" && (dominant === "COVID-19" || dominant === "Symptomatic")) {
+    return "High"
+  }
+
+  if (dominant === "Healthy" && fatigueLevel === "Low") {
     return "Low"
   }
 
-  return "Low"
+  return "Medium"
 }

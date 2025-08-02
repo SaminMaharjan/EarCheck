@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "earcheck-ai-mvp",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.10.0",
+    "@mediapipe/face_mesh": "^0.4.1633559619",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-aspect-ratio": "latest",
@@ -37,11 +37,11 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
-    "autoprefixer": "^10.4.20",
+    "@tensorflow/tfjs": "^4.21.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.21.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "latest",
-    "date-fns": "4.1.0",
     "embla-carousel-react": "latest",
     "geist": "latest",
     "input-otp": "latest",
@@ -57,17 +57,16 @@
     "sonner": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
-    "vaul": "latest",
-    "zod": "3.25.67"
+    "vaul": "latest"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eslint": "^8",
+    "eslint-config-next": "15.1.3",
     "postcss": "^8.5",
-    "tailwindcss": "^4.1.9",
-    "tw-animate-css": "1.3.3",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }
 }
