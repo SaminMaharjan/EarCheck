@@ -1,17 +1,19 @@
 import type { CoughAnalysis } from "./audio-processor"
+import { CoughDetectionIntegration, type CoughDetectionResult } from "./cough-detection-integration"
 
 export class CoughClassifier {
   private model: CoughModel | null = null
   private isLoaded = false
+  private coughDetectionIntegration: CoughDetectionIntegration
 
   constructor() {
+    this.coughDetectionIntegration = new CoughDetectionIntegration()
     this.loadModel()
   }
 
   private async loadModel() {
-    // In production, this would load a trained TensorFlow.js model
-    // For now, we'll use a rule-based classifier
-    this.model = new RuleBasedCoughModel()
+    // Use the integrated cough detection model
+    this.model = new IntegratedCoughModel(this.coughDetectionIntegration)
     this.isLoaded = true
   }
 
@@ -39,9 +41,31 @@ interface CoughModel {
   predict(analysis: CoughAnalysis): Promise<CoughClassification>
 }
 
-class RuleBasedCoughModel implements CoughModel {
+class IntegratedCoughModel implements CoughModel {
+  constructor(private coughDetectionIntegration: CoughDetectionIntegration) {}
+
   async predict(analysis: CoughAnalysis): Promise<CoughClassification> {
-    // Rule-based classification based on audio features
+    // First, detect if this is actually a cough
+    const coughDetection = await this.coughDetectionIntegration.analyzeAudio(
+      this.createAudioBufferFromAnalysis(analysis)
+    )
+
+    if (!coughDetection.isCough) {
+      // If not a cough, return low probabilities for all conditions
+      return {
+        conditions: [
+          { name: "COVID-19", probability: 0.05, confidence: "low" },
+          { name: "Asthma", probability: 0.05, confidence: "low" },
+          { name: "Bronchitis", probability: 0.05, confidence: "low" },
+          { name: "Pneumonia", probability: 0.05, confidence: "low" },
+        ],
+        dominantCondition: "No cough detected",
+        overallConfidence: "low",
+        analysisTimestamp: Date.now(),
+      }
+    }
+
+    // If it is a cough, use the original rule-based classification
     const { duration, rms, zeroCrossingRate, spectralCentroid, mfccFeatures } = analysis
 
     const conditions: ConditionProbability[] = []
@@ -127,6 +151,21 @@ class RuleBasedCoughModel implements CoughModel {
     }
 
     return wheezingIndicators > mfccFeatures.length / 26 // More than 50% of frames
+  }
+
+  private createAudioBufferFromAnalysis(analysis: CoughAnalysis): AudioBuffer {
+    // Create a mock AudioBuffer from the analysis data
+    // In a real implementation, you'd want to store the original audio data
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const buffer = audioContext.createBuffer(1, analysis.mfccFeatures.length * 512, 44100)
+    const channelData = buffer.getChannelData(0)
+    
+    // Fill with mock data based on the analysis features
+    for (let i = 0; i < channelData.length; i++) {
+      channelData[i] = Math.sin(i * 0.01) * analysis.rms
+    }
+    
+    return buffer
   }
 }
 

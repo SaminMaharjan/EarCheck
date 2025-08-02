@@ -140,28 +140,106 @@ export default function EnhancedAudioCapture({ isRecording, onAnalysisComplete }
     setAnalysisProgress(0)
 
     try {
-      // Convert blob to AudioBuffer
-      setAnalysisProgress(20)
-      const audioBuffer = await audioProcessor.processAudioBlob(blob)
+      // Convert blob to base64 for API transmission
+      const base64Audio = await blobToBase64(blob)
+      
+      // Simulate progress updates
+      const progressInterval = setInterval(() => {
+        setAnalysisProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval)
+            return 90
+          }
+          return prev + 10
+        })
+      }, 200)
 
-      // Extract audio features
-      setAnalysisProgress(50)
-      const analysis = audioProcessor.analyzeCoughCharacteristics(audioBuffer)
+      // Call the real analysis API
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audioData: base64Audio,
+          videoData: 'mock-video-data', // In real implementation, this would be actual video data
+        }),
+      })
 
-      // Classify the cough
-      setAnalysisProgress(80)
-      const classification = await coughClassifier.classifyCough(analysis)
+      if (!response.ok) {
+        throw new Error('Analysis failed')
+      }
 
+      const result = await response.json()
+      
+      clearInterval(progressInterval)
       setAnalysisProgress(100)
 
-      // Call the callback with results
-      onAnalysisComplete?.(analysis, classification)
+      // Convert API result to the format expected by the parent component
+      const analysis: CoughAnalysis = {
+        duration: result.coughAnalysis.duration || 0,
+        rms: result.coughAnalysis.rms || 0,
+        zeroCrossingRate: result.coughAnalysis.zeroCrossingRate || 0,
+        spectralCentroid: result.coughAnalysis.spectralCentroid || 0,
+        mfccFeatures: new Float32Array(result.coughAnalysis.mfccFeatures || []),
+        timestamp: Date.now(),
+      }
+
+      const classification: CoughClassification = {
+        conditions: result.coughAnalysis.conditions.map((c: any) => ({
+          name: c.name,
+          probability: c.confidence / 100,
+          confidence: c.confidence > 70 ? "high" : c.confidence > 40 ? "medium" : "low",
+        })),
+        dominantCondition: result.coughAnalysis.dominantCondition,
+        overallConfidence: result.overallRisk === "High" ? "high" : result.overallRisk === "Medium" ? "medium" : "low",
+        analysisTimestamp: Date.now(),
+      }
+
+      if (onAnalysisComplete) {
+        onAnalysisComplete(analysis, classification)
+      }
     } catch (error) {
-      console.error("Error analyzing audio:", error)
+      console.error('Analysis error:', error)
+      // Fallback to local analysis if API fails
+      await performLocalAnalysis(blob)
     } finally {
       setIsAnalyzing(false)
-      setTimeout(() => setAnalysisProgress(0), 1000)
+      setAnalysisProgress(0)
     }
+  }
+
+  const performLocalAnalysis = async (blob: Blob) => {
+    try {
+      // Convert blob to AudioBuffer
+      const arrayBuffer = await blob.arrayBuffer()
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+
+      // Perform local analysis using the integrated system
+      const analysis = audioProcessor.analyzeCoughCharacteristics(audioBuffer)
+      const classification = await coughClassifier.classifyCough(analysis)
+
+      if (onAnalysisComplete) {
+        onAnalysisComplete(analysis, classification)
+      }
+    } catch (error) {
+      console.error('Local analysis error:', error)
+    }
+  }
+
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove data URL prefix to get just the base64 string
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
   }
 
   const downloadRecording = () => {
