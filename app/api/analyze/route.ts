@@ -7,7 +7,7 @@ async function analyzeAudioAndVideo(audioData: string, videoData: string) {
     // For server-side deployment, we'll use a simplified analysis
     // In production, you would integrate with a proper server-side audio processing service
     
-    // Simulate processing time
+  // Simulate processing time
     await new Promise((resolve) => setTimeout(resolve, 1000))
     
     // Mock analysis results based on data characteristics
@@ -30,17 +30,17 @@ async function analyzeAudioAndVideo(audioData: string, videoData: string) {
     const breathingTypes = ["Normal breathing", "Shallow breathing", "Irregular breathing"]
     const breathingType = breathingTypes[Math.floor(Math.random() * breathingTypes.length)]
 
-    return {
-      coughAnalysis: {
+  return {
+    coughAnalysis: {
         conditions,
         dominantCondition: conditions[0].name,
-      },
-      fatigueScore: {
+    },
+    fatigueScore: {
         level: fatigueLevel,
         percentage: Math.round(fatiguePercentage),
-        indicators: ["Eye brightness analysis", "Blinking pattern assessment", "Facial muscle tension evaluation"],
-      },
-      breathingPattern: {
+      indicators: ["Eye brightness analysis", "Blinking pattern assessment", "Facial muscle tension evaluation"],
+    },
+    breathingPattern: {
         type: breathingType,
         description: `Breathing pattern analysis based on video characteristics: ${breathingType.toLowerCase()} detected`,
         concerns: breathingType !== "Normal breathing" ? ["Possible respiratory irregularity"] : [],
