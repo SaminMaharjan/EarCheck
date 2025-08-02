@@ -234,8 +234,8 @@ export default function EarCheckAI() {
                   </CardHeader>
                   <CardContent>
                     <DatasetUploader onDatasetLoaded={handleDatasetLoaded} />
-                  </CardContent>
-                </Card>
+          </CardContent>
+        </Card>
               </div>
             </TabsContent>
 
